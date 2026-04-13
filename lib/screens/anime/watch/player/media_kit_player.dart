@@ -71,13 +71,22 @@ class MediaKitPlayer extends base.BasePlayer {
   base.PlayerState get state => _state;
 
   @override
-  Future<void> initialize() async {
+  Future<void> initialize({bool audioOnly = false}) async {
     _player = Player(
       configuration: PlayerConfiguration(
         bufferSize: config.bufferSize,
         libass: config.useLibass,
       ),
     );
+
+    if (audioOnly) {
+      await _player.setProperty('vid', 'no');
+    } else {
+      await _player.setProperty('gpu-api', 'vulkan');
+      await _player.setProperty('hwdec', 'mediacodec-copy');
+      await _player.setProperty('demuxer-max-bytes', '150M');
+      await _player.setProperty('demuxer-max-back-bytes', '50M');
+    }
 
     _videoController = VideoController(
       _player,
@@ -90,6 +99,16 @@ class MediaKitPlayer extends base.BasePlayer {
     _setupListeners();
     await PlayerCoreVisualSettings.applyMpvCoreSettings(_player);
     await PlayerCoreVisualSettings.applyMpvVisualSettings(_player);
+  }
+
+  Future<void> toggleShader(String shaderPath) async {
+    // Dynamically hot-swap shader
+    final currentShaders = await _player.getProperty('glsl-shaders');
+    if (currentShaders != null && currentShaders.contains(shaderPath)) {
+      await _player.setProperty('glsl-shaders', '');
+    } else {
+      await _player.setProperty('glsl-shaders', shaderPath);
+    }
   }
 
   void _setupListeners() {

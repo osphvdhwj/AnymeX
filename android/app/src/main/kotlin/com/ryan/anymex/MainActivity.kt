@@ -14,6 +14,15 @@ import io.flutter.plugin.common.MethodChannel
 import android.os.Build
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import android.content.pm.PackageInstaller
+import android.app.PendingIntent
+import android.content.pm.PackageManager
+import rikka.shizuku.Shizuku
+import java.io.File
+import java.io.FileInputStream
+import kotlinx.coroutines.*
+import android.content.ComponentCallbacks2
+
 
 class MainActivity: FlutterActivity() {
     private val CHANNEL = "app/architecture"
@@ -95,6 +104,95 @@ class MainActivity: FlutterActivity() {
             }
         }
 
+
+        val installerChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.ryan.anymex/installer")
+        installerChannel.setMethodCallHandler { call, result ->
+            when (call.method) {
+                "installApkWithRoot" -> {
+                    val path = call.argument<String>("path")
+                    if (path != null) {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                val process = Runtime.getRuntime().exec(arrayOf("su", "-c", "pm install -r -d \"$path\""))
+                                val reader = BufferedReader(InputStreamReader(process.inputStream))
+                                val output = reader.readText()
+                                process.waitFor()
+                                withContext(Dispatchers.Main) {
+                                    if (process.exitValue() == 0) {
+                                        result.success(true)
+                                    } else {
+                                        result.error("ROOT_INSTALL_FAILED", output, null)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    result.error("ROOT_INSTALL_FAILED", e.message, null)
+                                }
+                            }
+                        }
+                    } else {
+                        result.error("INVALID_PATH", "Path cannot be null", null)
+                    }
+                }
+                "checkShizukuPermission" -> {
+                    if (Shizuku.pingBinder()) {
+                        if (Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                            result.success(true)
+                        } else {
+                            if (Shizuku.shouldShowRequestPermissionRationale()) {
+                                result.success(false)
+                            } else {
+                                Shizuku.requestPermission(1001)
+                                result.success(false)
+                            }
+                        }
+                    } else {
+                        result.success(false)
+                    }
+                }
+                "installApkWithShizuku" -> {
+                    val path = call.argument<String>("path")
+                    if (path != null) {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            try {
+                                if (Shizuku.pingBinder() && Shizuku.checkSelfPermission() == PackageManager.PERMISSION_GRANTED) {
+                                     val command = "pm install -r -d \"$path\""
+                                     val process = Shizuku.newProcess(arrayOf("sh", "-c", command), null, null)
+                                     val reader = BufferedReader(InputStreamReader(process.inputStream))
+                                     val output = reader.readText()
+                                     process.waitFor()
+                                     withContext(Dispatchers.Main) {
+                                         if (process.exitValue() == 0) {
+                                            result.success(true)
+                                         } else {
+                                            result.error("SHIZUKU_INSTALL_FAILED", output, null)
+                                         }
+                                     }
+                                } else {
+                                    withContext(Dispatchers.Main) {
+                                        result.error("SHIZUKU_PERMISSION_DENIED", "Shizuku permission not granted", null)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    result.error("SHIZUKU_INSTALL_FAILED", e.message, null)
+                                }
+                            }
+                        }
+                    } else {
+                        result.error("INVALID_PATH", "Path cannot be null", null)
+                    }
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.ryan.anymex/memory").setMethodCallHandler { call, result ->
+             when (call.method) {
+                else -> result.notImplemented()
+             }
+        }
+
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, VOLUME_EVENTS).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
@@ -106,6 +204,17 @@ class MainActivity: FlutterActivity() {
                 }
             }
         )
+    }
+
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if (level >= ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
+            val flutterEngine = flutterEngine
+            if (flutterEngine != null) {
+                MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.ryan.anymex/memory").invokeMethod("onTrimMemory", level)
+            }
+        }
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

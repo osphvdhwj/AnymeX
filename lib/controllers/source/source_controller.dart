@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:isolate';
 
 import 'package:anymex/controllers/cacher/cache_controller.dart';
 import 'package:anymex/controllers/service_handler/params.dart';
@@ -509,7 +510,11 @@ class SourceController extends GetxController implements BaseService {
   Future<Media> fetchDetails(FetchDetailsParams params) async {
     final isAnime = lastUpdatedSource.value == 'ANIME';
     final source = isAnime ? activeSource.value! : activeMangaSource.value!;
-    final data = await source.methods.getDetail(DMedia.withUrl(params.id));
+
+    // Run web scraping in an isolate to prevent UI thread blocking
+    final data = await Isolate.run(() async {
+        return await source.methods.getDetail(DMedia.withUrl(params.id));
+    });
 
     if (serviceHandler.serviceType.value != ServicesType.extensions) {
       cacheController.addCache(data.toJson());
