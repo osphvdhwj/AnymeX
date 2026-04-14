@@ -336,6 +336,16 @@ class MediaKitPlayer extends base.BasePlayer {
   }
 
   @override
+  Future<void> setAudioDelay(Duration delay) async {
+    await _player.setAudioDelay(delay);
+  }
+
+  @override
+  Future<void> setProperty(String property, String value) async {
+    await _player.setProperty(property, value);
+  }
+
+  @override
   Future<void> dispose() async {
     if (_isDisposed) return;
 

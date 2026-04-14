@@ -71,6 +71,10 @@ abstract class BasePlayer {
   });
 
   Future<void> setHardwareDecoding(String mode);
+
+  Future<void> setAudioDelay(Duration delay);
+
+  Future<void> setProperty(String property, String value);
 }
 
 class PlayerState {

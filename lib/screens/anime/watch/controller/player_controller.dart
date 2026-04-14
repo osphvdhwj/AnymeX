@@ -87,7 +87,43 @@ class PlayerController extends GetxController with WidgetsBindingObserver {
   final String? folderName;
   final String? itemName;
   final String? offlineVideoPath;
-  final shouldTrack;
+  final bool shouldTrack;
+
+  // Sync state
+  RxInt audioDelayMs = 0.obs;
+  RxInt subDelayMs = 0.obs;
+
+  // A-B Loop State
+  RxDouble loopA = (-1.0).obs;
+  RxDouble loopB = (-1.0).obs;
+
+  void setAudioDelay(int delayMs) {
+    audioDelayMs.value = delayMs;
+    _basePlayer.setAudioDelay(Duration(milliseconds: delayMs));
+  }
+
+  void setSubDelay(int delayMs) {
+    subDelayMs.value = delayMs;
+    _basePlayer.setSubtitleDelay(Duration(milliseconds: delayMs));
+  }
+
+  void setABLoop() {
+    double currentPos = _basePlayer.state.position.inMilliseconds / 1000.0;
+
+    if (loopA.value == -1.0) {
+      loopA.value = currentPos;
+      _basePlayer.setProperty('ab-loop-a', currentPos.toString());
+    } else if (loopB.value == -1.0 && currentPos > loopA.value) {
+      loopB.value = currentPos;
+      _basePlayer.setProperty('ab-loop-b', currentPos.toString());
+    } else {
+      loopA.value = -1.0;
+      loopB.value = -1.0;
+      _basePlayer.setProperty('ab-loop-a', 'no');
+      _basePlayer.setProperty('ab-loop-b', 'no');
+    }
+  }
+
 
   // Swipe speed control state
   RxBool isHoldSpeedActive = false.obs;
@@ -99,7 +135,7 @@ class PlayerController extends GetxController with WidgetsBindingObserver {
 
   void onSpeedSwipeStart() {
     if (!Get.find<Settings>().playerSettings.value.holdSwipeSpeedEnabled) return;
-    _previousSpeed = player.state.rate;
+    _previousSpeed = _basePlayer.state.rate;
     currentSwipeSpeed.value = _previousSpeed;
     isHoldSpeedActive.value = true;
   }
@@ -118,7 +154,7 @@ class PlayerController extends GetxController with WidgetsBindingObserver {
 
     if (newSpeed != currentSwipeSpeed.value) {
       currentSwipeSpeed.value = newSpeed;
-      setPlaybackSpeed(newSpeed);
+      setRate(newSpeed);
     }
   }
 
@@ -127,7 +163,7 @@ class PlayerController extends GetxController with WidgetsBindingObserver {
     isHoldSpeedActive.value = false;
 
     if (!_locksSpeed) {
-      setPlaybackSpeed(_previousSpeed);
+      setRate(_previousSpeed);
       currentSwipeSpeed.value = _previousSpeed;
     }
   }
