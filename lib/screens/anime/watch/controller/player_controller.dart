@@ -87,7 +87,52 @@ class PlayerController extends GetxController with WidgetsBindingObserver {
   final String? folderName;
   final String? itemName;
   final String? offlineVideoPath;
-  final bool shouldTrack;
+  final shouldTrack;
+
+  // Swipe speed control state
+  RxBool isHoldSpeedActive = false.obs;
+  double _previousSpeed = 1.0;
+  RxDouble currentSwipeSpeed = 1.0.obs;
+
+  List<double> get _speedSteps => Get.find<Settings>().playerSettings.value.customSpeedSteps;
+  bool get _locksSpeed => Get.find<Settings>().playerSettings.value.holdSwipeSpeedLocks;
+
+  void onSpeedSwipeStart() {
+    if (!Get.find<Settings>().playerSettings.value.holdSwipeSpeedEnabled) return;
+    _previousSpeed = player.state.rate;
+    currentSwipeSpeed.value = _previousSpeed;
+    isHoldSpeedActive.value = true;
+  }
+
+  void onSpeedSwipeUpdate(double horizontalDelta) {
+    if (!isHoldSpeedActive.value) return;
+
+    int currentIndex = _speedSteps.indexOf(currentSwipeSpeed.value);
+    if (currentIndex == -1) currentIndex = _speedSteps.indexOf(1.0);
+    if (currentIndex == -1) currentIndex = 3;
+
+    int stepChange = (horizontalDelta / 50).round();
+
+    int newIndex = (currentIndex + stepChange).clamp(0, _speedSteps.length - 1);
+    double newSpeed = _speedSteps[newIndex];
+
+    if (newSpeed != currentSwipeSpeed.value) {
+      currentSwipeSpeed.value = newSpeed;
+      setPlaybackSpeed(newSpeed);
+    }
+  }
+
+  void onSpeedSwipeEnd() {
+    if (!isHoldSpeedActive.value) return;
+    isHoldSpeedActive.value = false;
+
+    if (!_locksSpeed) {
+      setPlaybackSpeed(_previousSpeed);
+      currentSwipeSpeed.value = _previousSpeed;
+    }
+  }
+
+
 
   PlayerController(model.Video video, Episode episode, this.episodeList,
       this.anilistData, List<model.Video> episodes,

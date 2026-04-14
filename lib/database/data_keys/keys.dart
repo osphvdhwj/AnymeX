@@ -206,6 +206,9 @@ enum DynamicKeys {
 
 enum PlayerSettingsKeys {
   speed,
+  holdSwipeSpeedEnabled,
+  holdSwipeSpeedLocks,
+  customSpeedSteps,
   resizeMode,
   showSubtitle,
   subtitleSize,
