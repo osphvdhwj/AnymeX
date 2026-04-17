@@ -8,11 +8,32 @@ import 'package:anymex/widgets/non_widgets/snackbar.dart';
 import 'package:anymex_extension_runtime_bridge/AnymeXBridge.dart';
 import 'package:anymex_extension_runtime_bridge/ExtensionManager.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:isolate';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
 
 class PluginManager {
+  static const MethodChannel _installerChannel = MethodChannel('com.ryan.anymex/installer');
+
+  static Future<bool> installSilently(String apkPath) async {
+    try {
+      final bool shizukuPerm = await _installerChannel.invokeMethod('checkShizukuPermission');
+      if (shizukuPerm) {
+        await _installerChannel.invokeMethod('installApkWithShizuku', {'path': apkPath});
+        return true;
+      }
+
+      // Fallback to root
+      await _installerChannel.invokeMethod('installApkWithRoot', {'path': apkPath});
+      return true;
+    } catch (e) {
+      print("Silent installation failed: $e");
+      return false;
+    }
+  }
+
   static const String _latestReleaseUrl =
       'https://api.github.com/repos/RyanYuuki/AnymeXExtensionRuntimeBridge/releases/latest';
 

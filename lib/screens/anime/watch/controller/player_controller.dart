@@ -89,6 +89,87 @@ class PlayerController extends GetxController with WidgetsBindingObserver {
   final String? offlineVideoPath;
   final bool shouldTrack;
 
+  // Sync state
+  RxInt audioDelayMs = 0.obs;
+  RxInt subDelayMs = 0.obs;
+
+  // A-B Loop State
+  RxDouble loopA = (-1.0).obs;
+  RxDouble loopB = (-1.0).obs;
+
+  void setAudioDelay(int delayMs) {
+    audioDelayMs.value = delayMs;
+    _basePlayer.setAudioDelay(Duration(milliseconds: delayMs));
+  }
+
+  void setSubDelay(int delayMs) {
+    subDelayMs.value = delayMs;
+    _basePlayer.setSubtitleDelay(Duration(milliseconds: delayMs));
+  }
+
+  void setABLoop() {
+    double currentPos = _basePlayer.state.position.inMilliseconds / 1000.0;
+
+    if (loopA.value == -1.0) {
+      loopA.value = currentPos;
+      _basePlayer.setProperty('ab-loop-a', currentPos.toString());
+    } else if (loopB.value == -1.0 && currentPos > loopA.value) {
+      loopB.value = currentPos;
+      _basePlayer.setProperty('ab-loop-b', currentPos.toString());
+    } else {
+      loopA.value = -1.0;
+      loopB.value = -1.0;
+      _basePlayer.setProperty('ab-loop-a', 'no');
+      _basePlayer.setProperty('ab-loop-b', 'no');
+    }
+  }
+
+
+  // Swipe speed control state
+  RxBool isHoldSpeedActive = false.obs;
+  double _previousSpeed = 1.0;
+  RxDouble currentSwipeSpeed = 1.0.obs;
+
+  List<double> get _speedSteps => Get.find<Settings>().playerSettings.value.customSpeedSteps;
+  bool get _locksSpeed => Get.find<Settings>().playerSettings.value.holdSwipeSpeedLocks;
+
+  void onSpeedSwipeStart() {
+    if (!Get.find<Settings>().playerSettings.value.holdSwipeSpeedEnabled) return;
+    _previousSpeed = _basePlayer.state.rate;
+    currentSwipeSpeed.value = _previousSpeed;
+    isHoldSpeedActive.value = true;
+  }
+
+  void onSpeedSwipeUpdate(double horizontalDelta) {
+    if (!isHoldSpeedActive.value) return;
+
+    int currentIndex = _speedSteps.indexOf(currentSwipeSpeed.value);
+    if (currentIndex == -1) currentIndex = _speedSteps.indexOf(1.0);
+    if (currentIndex == -1) currentIndex = 3;
+
+    int stepChange = (horizontalDelta / 50).round();
+
+    int newIndex = (currentIndex + stepChange).clamp(0, _speedSteps.length - 1);
+    double newSpeed = _speedSteps[newIndex];
+
+    if (newSpeed != currentSwipeSpeed.value) {
+      currentSwipeSpeed.value = newSpeed;
+      setRate(newSpeed);
+    }
+  }
+
+  void onSpeedSwipeEnd() {
+    if (!isHoldSpeedActive.value) return;
+    isHoldSpeedActive.value = false;
+
+    if (!_locksSpeed) {
+      setRate(_previousSpeed);
+      currentSwipeSpeed.value = _previousSpeed;
+    }
+  }
+
+
+
   PlayerController(model.Video video, Episode episode, this.episodeList,
       this.anilistData, List<model.Video> episodes,
       {bool offline = false,

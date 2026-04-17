@@ -31,6 +31,9 @@ class PlayerSettings {
   String subtitleOutlineType;
   bool enableScreenshot;
   bool playerMenuAnimation;
+  bool holdSwipeSpeedEnabled;
+  bool holdSwipeSpeedLocks;
+  List<double> customSpeedSteps;
 
   PlayerSettings({
     this.speed = 1.0,
@@ -63,6 +66,9 @@ class PlayerSettings {
     this.autoSkipFiller = false,
     this.enableScreenshot = true,
     this.playerMenuAnimation = true,
+    this.holdSwipeSpeedEnabled = true,
+    this.holdSwipeSpeedLocks = false,
+    this.customSpeedSteps = const [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0, 4.0],
   });
 
   factory PlayerSettings.fromDB() {
@@ -132,6 +138,12 @@ class PlayerSettings {
           .get<bool>(defaults.enableScreenshot),
       playerMenuAnimation: PlayerSettingsKeys.playerMenuAnimation
           .get<bool>(defaults.playerMenuAnimation),
+      holdSwipeSpeedEnabled: PlayerSettingsKeys.holdSwipeSpeedEnabled
+          .get<bool>(defaults.holdSwipeSpeedEnabled),
+      holdSwipeSpeedLocks: PlayerSettingsKeys.holdSwipeSpeedLocks
+          .get<bool>(defaults.holdSwipeSpeedLocks),
+      customSpeedSteps: (PlayerSettingsKeys.customSpeedSteps
+          .get<List<dynamic>>(defaults.customSpeedSteps)).map((e) => e as double).toList(),
     );
   }
 }
